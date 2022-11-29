@@ -31,6 +31,29 @@ export const getAssociatedTokenAddressSync = (
   );
 };
 
+export const getTokenAccount = async (
+  connection: web3.Connection,
+  owner: web3.PublicKey,
+  mint: web3.PublicKey
+) => {
+  const { value: tokenAccounts } =
+    await connection.getParsedTokenAccountsByOwner(owner, { mint });
+
+  if (tokenAccounts.length > 0) {
+    const ataAddress = getAssociatedTokenAddressSync(mint, owner);
+    const ataAccount = tokenAccounts.filter((it) =>
+      it.pubkey.equals(ataAddress[0])
+    );
+    if (ataAccount.length > 0) {
+      return ataAccount[0];
+    } else {
+      return tokenAccounts[0];
+    }
+  }
+
+  return null;
+};
+
 export const getPoolAuthority = (
   programId: web3.PublicKey,
   mint: web3.PublicKey
@@ -49,17 +72,29 @@ export const getProgram = (
 
 export const initPool = async (p: {
   program: Program<FlashLoanMastery>;
+  connection: web3.Connection;
   funder: web3.Signer;
   tokenMint: web3.PublicKey;
   poolMint: web3.PublicKey;
   poolMintAuthority: web3.Signer;
 }): Promise<InstructionReturn[]> => {
-  const { program, funder, poolMintAuthority, tokenMint, poolMint } = p;
+  const {
+    program,
+    connection,
+    funder,
+    poolMintAuthority,
+    tokenMint,
+    poolMint,
+  } = p;
   const poolAuthority = getPoolAuthority(program.programId, tokenMint);
   const bankToken = getAssociatedTokenAddressSync(tokenMint, poolAuthority[0]);
-  const adminToken = getAssociatedTokenAddressSync(tokenMint, ADMIN);
+  const possibleAdminToken = await getTokenAccount(
+    connection,
+    ADMIN,
+    tokenMint
+  );
 
-  return [
+  const results = [
     {
       instruction: await program.methods
         .initPool()
@@ -84,26 +119,32 @@ export const initPool = async (p: {
       ),
       signers: [],
     },
-    {
+  ];
+
+  if (possibleAdminToken == null) {
+    results.push({
       instruction: createAssociatedTokenAccountInstruction(
         funder.publicKey,
-        adminToken[0],
+        getAssociatedTokenAddressSync(tokenMint, ADMIN)[0],
         ADMIN,
         tokenMint
       ),
       signers: [],
-    } /** only do this if token does not already exist */,
-  ];
+    });
+  }
+
+  return results;
 };
 
 export const deposit = async (p: {
   program: Program<FlashLoanMastery>;
+  connection: web3.Connection;
   depositor: web3.PublicKey;
   mint: web3.PublicKey;
   tokenFrom: web3.PublicKey;
   amount: BN;
 }): Promise<InstructionReturn[]> => {
-  const { amount, program, depositor, mint, tokenFrom } = p;
+  const { amount, connection, program, depositor, mint, tokenFrom } = p;
 
   const poolAuthority = getPoolAuthority(program.programId, mint);
   const tokenTo = getAssociatedTokenAddressSync(mint, poolAuthority[0]);
@@ -114,12 +155,12 @@ export const deposit = async (p: {
     poolAuthorityAccount.poolShareMint,
     depositor
   );
-  const depositorPoolToken = getAssociatedTokenAddressSync(
-    poolAuthorityAccount.poolShareMint,
-    depositor
+  const possibleDepositorPoolToken = await getTokenAccount(
+    connection,
+    depositor,
+    poolAuthorityAccount.poolShareMint
   );
-
-  return [
+  const results = [
     {
       instruction: await program.methods
         .deposit(amount)
@@ -136,73 +177,94 @@ export const deposit = async (p: {
 
       signers: [],
     },
-    {
+  ];
+
+  if (possibleDepositorPoolToken == null) {
+    results.push({
       instruction: createAssociatedTokenAccountInstruction(
         depositor,
-        depositorPoolToken[0],
+        getAssociatedTokenAddressSync(
+          poolAuthorityAccount.poolShareMint,
+          depositor
+        )[0],
         depositor,
         poolAuthorityAccount.poolShareMint
       ),
       signers: [],
-    } /** only do this if token does not already exist */,
-  ];
+    });
+  }
+
+  return results;
 };
 
 export const withdraw = async (p: {
   program: Program<FlashLoanMastery>;
+  connection: web3.Connection;
   withdrawer: web3.PublicKey;
   mint: web3.PublicKey;
   poolShareTokenFrom: web3.PublicKey;
   amount: BN;
 }): Promise<InstructionReturn[]> => {
-  const { amount, program, withdrawer, mint, poolShareTokenFrom } = p;
+  const { amount, program, connection, withdrawer, mint, poolShareTokenFrom } =
+    p;
 
   const poolAuthority = getPoolAuthority(program.programId, mint);
   const tokenFrom = getAssociatedTokenAddressSync(mint, poolAuthority[0]);
-  const tokenTo = getAssociatedTokenAddressSync(mint, withdrawer);
   const poolAuthorityAccount = await program.account.poolAuthority.fetch(
     poolAuthority[0]
   );
+  let tokenTo: web3.PublicKey = getAssociatedTokenAddressSync(
+    mint,
+    withdrawer
+  )[0];
+  const possibleTokenTo = await getTokenAccount(connection, withdrawer, mint);
+  const results = [];
 
-  return [
-    {
+  if (possibleTokenTo == null) {
+    results.push({
       instruction: createAssociatedTokenAccountInstruction(
         withdrawer,
-        tokenTo[0],
+        getAssociatedTokenAddressSync(mint, withdrawer)[0],
         withdrawer,
         mint
       ),
       signers: [],
-    } /** only do this if token does not already exist */,
-    {
-      instruction: await program.methods
-        .withdraw(amount)
-        .accountsStrict({
-          withdrawer,
-          tokenFrom: tokenFrom[0],
-          tokenTo: tokenTo[0],
-          poolShareTokenFrom,
-          poolShareMint: poolAuthorityAccount.poolShareMint,
-          poolAuthority: poolAuthority[0],
-          tokenProgram: TOKEN_PROGRAM_ID,
-        })
-        .instruction(),
+    });
+  } else {
+    tokenTo = possibleTokenTo.pubkey;
+  }
 
-      signers: [],
-    },
-  ];
+  results.push({
+    instruction: await program.methods
+      .withdraw(amount)
+      .accountsStrict({
+        withdrawer,
+        tokenFrom: tokenFrom[0],
+        tokenTo,
+        poolShareTokenFrom,
+        poolShareMint: poolAuthorityAccount.poolShareMint,
+        poolAuthority: poolAuthority[0],
+        tokenProgram: TOKEN_PROGRAM_ID,
+      })
+      .instruction(),
+
+    signers: [],
+  });
+
+  return results;
 };
 
 export const flashLoan = async (p: {
   program: Program<FlashLoanMastery>;
   borrower: web3.PublicKey;
+  referralTokenTo?: web3.PublicKey;
   mint: web3.PublicKey;
   amount: BN;
 }): Promise<{
   borrow: web3.TransactionInstruction;
   repay: web3.TransactionInstruction;
 }> => {
-  const { amount, program, borrower, mint } = p;
+  const { amount, program, borrower, mint, referralTokenTo } = p;
 
   const poolAuthority = getPoolAuthority(program.programId, mint);
   const borrowerToken = getAssociatedTokenAddressSync(mint, borrower);
@@ -226,7 +288,6 @@ export const flashLoan = async (p: {
     .div(new BN(LOAN_FEE_DENOMINATOR))
     .div(new BN(ONE_HUNDRED));
   const repaymentAmount = amount.add(totalFees);
-
   const repay = program.methods
     .repay(repaymentAmount)
     .accountsStrict({
@@ -238,6 +299,11 @@ export const flashLoan = async (p: {
       instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       tokenProgram: TOKEN_PROGRAM_ID,
     })
+    .remainingAccounts(
+      referralTokenTo
+        ? [{ pubkey: referralTokenTo, isSigner: false, isWritable: true }]
+        : []
+    )
     .instruction();
 
   return {
