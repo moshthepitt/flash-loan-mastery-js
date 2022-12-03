@@ -78,7 +78,14 @@ export const initPool = async (p: {
   tokenMint: web3.PublicKey;
   poolMint: web3.PublicKey;
   poolMintAuthority: web3.Signer;
-}): Promise<InstructionReturn[]> => {
+}): Promise<{
+  instructions: {
+    instruction: web3.TransactionInstruction;
+    signers: web3.Signer[];
+  }[];
+  poolAuthority: web3.PublicKey;
+  bankToken: web3.PublicKey;
+}> => {
   const {
     program,
     connection,
@@ -151,7 +158,11 @@ export const initPool = async (p: {
     });
   }
 
-  return results;
+  return {
+    instructions: results,
+    poolAuthority: poolAuthority[0],
+    bankToken: bankToken[0],
+  };
 };
 
 export const deposit = async (p: {
@@ -161,7 +172,15 @@ export const deposit = async (p: {
   mint: web3.PublicKey;
   tokenFrom: web3.PublicKey;
   amount: BN;
-}): Promise<InstructionReturn[]> => {
+}): Promise<{
+  instructions: {
+    instruction: web3.TransactionInstruction;
+    signers: never[];
+  }[];
+  poolAuthority: web3.PublicKey;
+  bankToken: web3.PublicKey;
+  poolShareTokenTo: web3.PublicKey;
+}> => {
   const { amount, connection, program, depositor, mint, tokenFrom } = p;
 
   const poolAuthority = getPoolAuthority(program.programId, mint);
@@ -212,7 +231,12 @@ export const deposit = async (p: {
     });
   }
 
-  return results;
+  return {
+    instructions: results,
+    poolAuthority: poolAuthority[0],
+    bankToken: tokenTo[0],
+    poolShareTokenTo: poolShareTokenTo[0],
+  };
 };
 
 export const withdraw = async (p: {
@@ -222,7 +246,13 @@ export const withdraw = async (p: {
   mint: web3.PublicKey;
   poolShareTokenFrom: web3.PublicKey;
   amount: BN;
-}): Promise<InstructionReturn[]> => {
+}): Promise<{
+  instructions: {
+    instruction: web3.TransactionInstruction;
+    signers: never[];
+  }[];
+  poolAuthority: web3.PublicKey;
+}> => {
   const { amount, program, connection, withdrawer, mint, poolShareTokenFrom } =
     p;
 
@@ -269,7 +299,10 @@ export const withdraw = async (p: {
     signers: [],
   });
 
-  return results;
+  return {
+    instructions: results,
+    poolAuthority: poolAuthority[0],
+  };
 };
 
 export const flashLoan = async (p: {
