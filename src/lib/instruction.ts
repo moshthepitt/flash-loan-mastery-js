@@ -1,4 +1,4 @@
-import { BN, Program, web3 } from '@project-serum/anchor';
+import { AnchorProvider, BN, Program, web3 } from '@project-serum/anchor';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
@@ -22,8 +22,8 @@ export type InstructionReturn = {
 };
 
 export const getAssociatedTokenAddressSync = (
-  owner: web3.PublicKey,
-  mint: web3.PublicKey
+  mint: web3.PublicKey,
+  owner: web3.PublicKey
 ) => {
   return web3.PublicKey.findProgramAddressSync(
     [owner.toBuffer(), TOKEN_PROGRAM_ID.toBuffer(), mint.toBuffer()],
@@ -65,9 +65,10 @@ export const getPoolAuthority = (
 };
 
 export const getProgram = (
-  programId: web3.PublicKey
+  programId: web3.PublicKey,
+  provider?: AnchorProvider
 ): Program<FlashLoanMastery> => {
-  return new Program(IDL, programId) as Program<FlashLoanMastery>;
+  return new Program(IDL, programId, provider) as Program<FlashLoanMastery>;
 };
 
 export const initPool = async (p: {
@@ -88,6 +89,11 @@ export const initPool = async (p: {
   } = p;
   const poolAuthority = getPoolAuthority(program.programId, tokenMint);
   const bankToken = getAssociatedTokenAddressSync(tokenMint, poolAuthority[0]);
+  const possibleUserToken = await getTokenAccount(
+    connection,
+    funder.publicKey,
+    tokenMint
+  );
   const possibleAdminToken = await getTokenAccount(
     connection,
     ADMIN,
@@ -120,6 +126,18 @@ export const initPool = async (p: {
       signers: [],
     },
   ];
+
+  if (possibleUserToken == null) {
+    results.push({
+      instruction: createAssociatedTokenAccountInstruction(
+        funder.publicKey,
+        getAssociatedTokenAddressSync(tokenMint, funder.publicKey)[0],
+        funder.publicKey,
+        tokenMint
+      ),
+      signers: [],
+    });
+  }
 
   if (possibleAdminToken == null) {
     results.push({
