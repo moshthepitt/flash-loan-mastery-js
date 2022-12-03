@@ -198,7 +198,7 @@ export const deposit = async (p: {
   ];
 
   if (possibleDepositorPoolToken == null) {
-    results.push({
+    results.unshift({
       instruction: createAssociatedTokenAccountInstruction(
         depositor,
         getAssociatedTokenAddressSync(
