@@ -314,6 +314,7 @@ export const flashLoan = async (p: {
 }): Promise<{
   borrow: web3.TransactionInstruction;
   repay: web3.TransactionInstruction;
+  repaymentAmount: BN;
 }> => {
   const { amount, program, borrower, mint, referralTokenTo } = p;
 
@@ -360,5 +361,6 @@ export const flashLoan = async (p: {
   return {
     borrow: await borrow,
     repay: await repay,
+    repaymentAmount,
   };
 };
