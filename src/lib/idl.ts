@@ -234,12 +234,6 @@ export type FlashLoanMastery = {
           docs: ['The token to receive tokens repaid into the pool'];
         },
         {
-          name: 'adminTokenTo';
-          isMut: true;
-          isSigner: false;
-          docs: ['The token to receive tokens repaid into the pool'];
-        },
-        {
           name: 'poolAuthority';
           isMut: false;
           isSigner: false;
@@ -572,12 +566,6 @@ export const IDL: FlashLoanMastery = {
         },
         {
           name: 'tokenTo',
-          isMut: true,
-          isSigner: false,
-          docs: ['The token to receive tokens repaid into the pool'],
-        },
-        {
-          name: 'adminTokenTo',
           isMut: true,
           isSigner: false,
           docs: ['The token to receive tokens repaid into the pool'],

@@ -8,13 +8,9 @@ import {
 import { FlashLoanMastery, IDL } from './idl';
 
 export const LOAN_FEE = 900;
-export const ADMIN_FEE = 50;
+export const REFERRAL_FEE = 50;
 export const LOAN_FEE_DENOMINATOR = 10000;
 export const ONE_HUNDRED = 100;
-
-export const ADMIN = new web3.PublicKey(
-  '8JJxe21mwJezmU5y9NxTWUxc9stkEkwcP1deRzL2Kc7s'
-);
 
 export type InstructionReturn = {
   instruction: web3.TransactionInstruction;
@@ -101,11 +97,6 @@ export const initPool = async (p: {
     funder.publicKey,
     tokenMint
   );
-  const possibleAdminToken = await getTokenAccount(
-    connection,
-    ADMIN,
-    tokenMint
-  );
 
   const results = [
     {
@@ -140,18 +131,6 @@ export const initPool = async (p: {
         funder.publicKey,
         getAssociatedTokenAddressSync(tokenMint, funder.publicKey)[0],
         funder.publicKey,
-        tokenMint
-      ),
-      signers: [],
-    });
-  }
-
-  if (possibleAdminToken == null) {
-    results.push({
-      instruction: createAssociatedTokenAccountInstruction(
-        funder.publicKey,
-        getAssociatedTokenAddressSync(tokenMint, ADMIN)[0],
-        ADMIN,
         tokenMint
       ),
       signers: [],
@@ -321,7 +300,6 @@ export const flashLoan = async (p: {
   const poolAuthority = getPoolAuthority(program.programId, mint);
   const borrowerToken = getAssociatedTokenAddressSync(mint, borrower);
   const bankToken = getAssociatedTokenAddressSync(mint, poolAuthority[0]);
-  const adminToken = getAssociatedTokenAddressSync(mint, ADMIN);
 
   const borrow = program.methods
     .borrow(amount)
@@ -336,7 +314,7 @@ export const flashLoan = async (p: {
     .instruction();
 
   const totalFees = amount
-    .mul(new BN(LOAN_FEE).add(new BN(ADMIN_FEE).mul(new BN(2))))
+    .mul(new BN(LOAN_FEE).add(new BN(REFERRAL_FEE)))
     .div(new BN(LOAN_FEE_DENOMINATOR))
     .div(new BN(ONE_HUNDRED));
   const repaymentAmount = amount.add(totalFees);
@@ -346,7 +324,6 @@ export const flashLoan = async (p: {
       repayer: borrower,
       tokenFrom: borrowerToken[0],
       tokenTo: bankToken[0],
-      adminTokenTo: adminToken[0],
       poolAuthority: poolAuthority[0],
       instructionsSysvar: web3.SYSVAR_INSTRUCTIONS_PUBKEY,
       tokenProgram: TOKEN_PROGRAM_ID,
