@@ -11,12 +11,17 @@ export const LOAN_FEE = 900;
 export const REFERRAL_FEE = 50;
 export const LOAN_FEE_DENOMINATOR = 10000;
 export const ONE_HUNDRED = 100;
+export const FLASH_LOAN_MASTERY_PROGRAM_ID = new web3.PublicKey(
+  '1oanfPPN8r1i4UbugXHDxWMbWVJ5qLSN5qzNFZkz6Fg'
+);
 
+/** Describes the expected return type for a function that returns an instruction */
 export type InstructionReturn = {
   instruction: web3.TransactionInstruction;
   signers: web3.Signer[];
 };
 
+/** Synchronously get an associated token address for a mint and owner */
 export const getAssociatedTokenAddressSync = (
   mint: web3.PublicKey,
   owner: web3.PublicKey
@@ -27,6 +32,7 @@ export const getAssociatedTokenAddressSync = (
   );
 };
 
+/** Gets a token account for a given mint and owner or returns null if it does not exist */
 export const getTokenAccount = async (
   connection: web3.Connection,
   owner: web3.PublicKey,
@@ -50,8 +56,9 @@ export const getTokenAccount = async (
   return null;
 };
 
+/** Finds and returns the pool address for a given mint */
 export const getPoolAuthority = (
-  programId: web3.PublicKey,
+  programId: web3.PublicKey = FLASH_LOAN_MASTERY_PROGRAM_ID,
   mint: web3.PublicKey
 ) => {
   return web3.PublicKey.findProgramAddressSync(
@@ -60,13 +67,18 @@ export const getPoolAuthority = (
   );
 };
 
+/** Gets the Anchor program object */
 export const getProgram = (
-  programId: web3.PublicKey,
+  programId: web3.PublicKey = FLASH_LOAN_MASTERY_PROGRAM_ID,
   provider?: AnchorProvider
 ): Program<FlashLoanMastery> => {
   return new Program(IDL, programId, provider) as Program<FlashLoanMastery>;
 };
 
+/** Initializes a new flash loan pool for a given token mint.
+ * Use this when you want to enable flash loans for a particular Solana
+ * token e,g. USDC or even your own token.
+ */
 export const initPool = async (p: {
   program: Program<FlashLoanMastery>;
   connection: web3.Connection;
@@ -75,10 +87,7 @@ export const initPool = async (p: {
   poolMint: web3.PublicKey;
   poolMintAuthority: web3.Signer;
 }): Promise<{
-  instructions: {
-    instruction: web3.TransactionInstruction;
-    signers: web3.Signer[];
-  }[];
+  instructions: InstructionReturn[];
   poolAuthority: web3.PublicKey;
   bankToken: web3.PublicKey;
 }> => {
@@ -144,6 +153,10 @@ export const initPool = async (p: {
   };
 };
 
+/** Deposit tokens to a flash loan pool.
+ * For instance, if you have USDC you can deposit it into the USDC pool and make it
+ * available for people to borrow.  You will then earn part of the flash loan interest.
+ */
 export const deposit = async (p: {
   program: Program<FlashLoanMastery>;
   connection: web3.Connection;
@@ -152,10 +165,7 @@ export const deposit = async (p: {
   tokenFrom: web3.PublicKey;
   amount: BN;
 }): Promise<{
-  instructions: {
-    instruction: web3.TransactionInstruction;
-    signers: never[];
-  }[];
+  instructions: InstructionReturn[];
   poolAuthority: web3.PublicKey;
   bankToken: web3.PublicKey;
   poolShareTokenTo: web3.PublicKey;
@@ -218,6 +228,9 @@ export const deposit = async (p: {
   };
 };
 
+/** Withdraw tokens from a flash loan pool.
+ * This will withdraw your previous deposits as well as any accumulated earned interest.
+ */
 export const withdraw = async (p: {
   program: Program<FlashLoanMastery>;
   connection: web3.Connection;
@@ -226,10 +239,7 @@ export const withdraw = async (p: {
   poolShareTokenFrom: web3.PublicKey;
   amount: BN;
 }): Promise<{
-  instructions: {
-    instruction: web3.TransactionInstruction;
-    signers: never[];
-  }[];
+  instructions: InstructionReturn[];
   poolAuthority: web3.PublicKey;
 }> => {
   const { amount, program, connection, withdrawer, mint, poolShareTokenFrom } =
@@ -284,6 +294,10 @@ export const withdraw = async (p: {
   };
 };
 
+/** Initiate a flash loan transaction.
+ * This outputs two instructions representing the flash loan borrow and repay for you
+ * to use as you please.
+ */
 export const flashLoan = async (p: {
   program: Program<FlashLoanMastery>;
   borrower: web3.PublicKey;
