@@ -15,3 +15,9 @@ yarn add flash-loan-mastery
 ## Documentation
 
 Visit our [website](https://flashloanmastery.com/posts/javascript-sdk/) for more documentation.  Here is a [mirror](https://github.com/moshthepitt/flash-loan-mastery/blob/master/app/site/src/posts/javascript-sdk.md) in case there is an issue with the website.
+
+### Building docs
+
+```sh
+yarn doc
+```
