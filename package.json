@@ -43,7 +43,7 @@
   "dependencies": {
     "@bitauth/libauth": "^1.17.1",
     "@project-serum/anchor": "^0.25.0",
-    "@solana/spl-token": "^0.2"
+    "@solana/spl-token": "^0.3.7"
   },
   "devDependencies": {
     "@ava/typescript": "^1.1.1",
